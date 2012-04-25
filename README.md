@@ -1,4 +1,4 @@
-nesty-laravel
+Nesty
 =============
 
-A nested sets bundle for Laravel
+A nested sets bundle for Laravel.
