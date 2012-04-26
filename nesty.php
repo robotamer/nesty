@@ -46,6 +46,39 @@ class Nesty extends Crud
 	public $children = array();
 
 	/**
+	 * Reloads the current model from the database.
+	 *
+	 * @return  Nesty
+	 */
+	public function reload()
+	{
+		if ( ! $this->exists())
+		{
+			throw new NestyException('You cannot call reload() on a model that hasn\'t been persisted to the database');
+		}
+
+		$this->fill($this->query()->where(static::$key, '=', $this->{static::$key})->first());
+
+		return $this;
+	}
+
+	/**
+	 * Get the size in the tree of this nesty.
+	 *
+	 * @return  int
+	 */
+	public function size()
+	{
+		return $this->{static::$nesty_cols['right']} - $this->{static::$nesty_cols['left']};
+	}
+
+	/*
+	|--------------------------------------------------------------------------
+	| Creating new trees / roots
+	|--------------------------------------------------------------------------
+	*/
+
+	/**
 	 * Makes the current model a root nesty.
 	 *
 	 * @todo Allow existing objects to move to
@@ -55,6 +88,11 @@ class Nesty extends Crud
 	 */
 	public function root()
 	{
+		if ($this->exists())
+		{
+			throw new NestyException('Build functionality to move existing nesties to be a new root');
+		}
+
 		// Set the left and right limit of the nesty
 		$this->{static::$nesty_cols['left']}  = 1;
 		$this->{static::$nesty_cols['right']} = 2;
@@ -64,6 +102,12 @@ class Nesty extends Crud
 
 		return $this->save();
 	}
+
+	/*
+	|--------------------------------------------------------------------------
+	| Assigning Children
+	|--------------------------------------------------------------------------
+	*/
 
 	/**
 	 * Make the current model the first child of
@@ -114,29 +158,9 @@ class Nesty extends Crud
 		// If we haven't been saved to the database before
 		if ( ! $this->exists())
 		{
-			// Inserting as first child
-			if ($position === 'first')
-			{
-				// Our left limit is 1 greater than the left limit
-				// of the parent
-				$this->{static::$nesty_cols['left']} = $parent->{static::$nesty_cols['left']} + 1;
-
-				// Our right is 1 more than our left
-				$this->{static::$nesty_cols['right']} = $parent->{static::$nesty_cols['left']} + 2;
-			}
-
-
-			// Inserting as last child
-			else
-			{
-				// Our left limit is 1 greater than the current last
-				// child's right limit, we will sit as the new last child.
-				// This means also, that our left limit matches the parent's
-				// current right limit. Confusing? Read over it again, it'll make
-				// sense
-				$this->{static::$nesty_cols['left']}  = $parent->{static::$nesty_cols['right']};
-				$this->{static::$nesty_cols['right']} = $parent->{static::$nesty_cols['right']} + 1;
-			}
+			// Setup our limits
+			$this->{static::$nesty_cols['left']} = ($position === 'first') ? $parent->{static::$nesty_cols['left']} + 1 : $parent->{static::$nesty_cols['right']};
+			$this->{static::$nesty_cols['right']} = $this->{static::$nesty_cols['left']} + 1;
 
 			// Set our tree identifier to match the parent
 			$this->{static::$nesty_cols['tree']} = $parent->{static::$nesty_cols['tree']};
@@ -152,7 +176,7 @@ class Nesty extends Crud
 		// If we are existent in the database
 		else
 		{
-			// Remove from tree and reload
+			// Remove from tree
 			$this->remove_from_tree();
 
 			// Reload parent
@@ -169,35 +193,112 @@ class Nesty extends Crud
 
 			// Reinsert in tree
 			$this->reinsert_in_tree($new_left);
+
+			// Because we have moved, reset our cached children
+			$this->children = array();
 		}
-	}
-
-	/**
-	 * Get the size in the tree of this nesty.
-	 *
-	 * @return  int
-	 */
-	public function size()
-	{
-		return $this->{static::$nesty_cols['right']} - $this->{static::$nesty_cols['left']};
-	}
-
-	/**
-	 * Reloads the current model from the database.
-	 *
-	 * @return  Nesty
-	 */
-	public function reload()
-	{
-		if ( ! $this->exists())
-		{
-			throw new NestyException('You cannot call reload() on a model that hasn\'t been persisted to the database');
-		}
-
-		$this->fill($this->query()->where(static::$key, '=', $this->{static::$key})->first());
 
 		return $this;
 	}
+
+	/*
+	|--------------------------------------------------------------------------
+	| Assigning Siblings
+	|--------------------------------------------------------------------------
+	*/
+
+	/**
+	 * Make this model the previous sibling before
+	 * given sibling.
+	 *
+	 * @param   Nesty  $sibling
+	 */
+	public function previous_sibling_of(Nesty &$sibling)
+	{
+		return $this->sibling_of($sibling, 'previous');
+	}
+
+	/**
+	 * Make this model the next sibling after the
+	 * given sibling.
+	 *
+	 * @param   Nesty  $sibling
+	 */
+	public function next_sibling_of(Nesty &$sibling)
+	{
+		return $this->sibling_of($sibling, 'next');
+	}
+
+	/**
+	 * Make this model a sibling of the given sibling.
+	 *
+	 * @param   Nesty  $sibling
+	 * @param   string $position
+	 * @return  Nesty
+	 */
+	public function sibling_of(Nesty &$sibling, $position)
+	{
+		if ( ! $sibling->exists())
+		{
+			throw new NestyException('The sibling Nesty model must exist before you can assign new siblings to it.');
+		}
+
+		if ( ! in_array($position, array('previous', 'next')))
+		{
+			throw new NestyException(sprintf('Position %s is not a valid position.', $position));
+		}
+
+		// Reset cached children
+		$sibling->children = array();
+
+		// If we haven't been saved to the database before
+		if ( ! $this->exists())
+		{
+			// Setup our limits
+			$this->{static::$nesty_cols['left']}  = ($position === 'previous') ? $sibling->{static::$nesty_cols['left']} : $sibling->{static::$nesty_cols['right']} + 1;
+			$this->{static::$nesty_cols['right']} = $this->{static::$nesty_cols['left']} + 1;
+
+			// Set our tree identifier to match the sibling
+			$this->{static::$nesty_cols['tree']} = $sibling->{static::$nesty_cols['tree']};
+
+			$this->gap($this->{static::$nesty_cols['left']})
+			     ->save();
+		}
+
+		// If we are existent in the database
+		else
+		{
+			// Remove from tree
+			$this->remove_from_tree();
+
+			// Reload sibling
+			$sibling->reload();
+
+			// If we are moving between trees
+			if ($this->{static::$nesty_cols['tree']} !== $sibling->{static::$nesty_cols['tree']})
+			{
+				$this->move_to_tree($sibling->{static::$nesty_cols['tree']});
+			}
+
+			// Determine our new left position
+			$new_left = ($position === 'previous') ? $sibling->{static::$nesty_cols['left']}: $sibling->{static::$nesty_cols['right']} + 1;
+
+			// Reinsert in tree
+			$this->reinsert_in_tree($new_left);
+
+			// Because we have moved, reset our cached children
+			$this->children = array();
+		}
+
+		return $this;
+	}
+
+
+	/*
+	|-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+	| Protected Nesty helper methods
+	|-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+	*/
 
 	/**
 	 * Move a nesty to a new tree
@@ -268,19 +369,13 @@ class Nesty extends Crud
 		return $this;
 	}
 
-	/*
-	|--------------------------------------------------------------------------
-	| Static Usage
-	|--------------------------------------------------------------------------
-	*/
-
 	/**
 	 * Create a gap in the tree.
 	 *
 	 * @param   int  $start
 	 * @param   int  $size
 	 * @param   int  $tree
-	 * @return  void
+	 * @return  Nesty
 	 */
 	protected function gap($start, $size = null, $tree = null)
 	{
@@ -307,5 +402,7 @@ class Nesty extends Crud
 		      ->update(array(
 		      	static::$nesty_cols['right'] => DB::raw('`'.static::$nesty_cols['right'].'` + '.$size),
 		      ));
+
+		return $this;
 	}
 }
