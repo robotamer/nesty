@@ -158,6 +158,12 @@ class Nesty extends Crud
 			// Reload parent
 			$parent->reload();
 
+			// If we are moving between trees
+			if ($this->{static::$nesty_cols['tree']} !== $parent->{static::$nesty_cols['tree']})
+			{
+				$this->move_to_tree($parent->{static::$nesty_cols['tree']});
+			}
+
 			// Determine our new left position
 			$new_left = ($position === 'first') ? $parent->{static::$nesty_cols['left']} + 1 : $parent->{static::$nesty_cols['right']};
 
@@ -190,6 +196,19 @@ class Nesty extends Crud
 
 		$this->fill($this->query()->where(static::$key, '=', $this->{static::$key})->first());
 
+		return $this;
+	}
+
+	/**
+	 * Move a nesty to a new tree
+	 *
+	 * @param   int  $tree
+	 * @return  Nesty
+	 */
+	protected function move_to_tree($tree)
+	{
+		$this->{static::$nesty_cols['tree']} = $tree;
+		$this->save();
 		return $this;
 	}
 
