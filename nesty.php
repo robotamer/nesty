@@ -52,7 +52,7 @@ class Nesty extends Crud
 	 */
 	public function reload()
 	{
-		if ( ! $this->exists())
+		if ($this->is_new())
 		{
 			throw new NestyException('You cannot call reload() on a model that hasn\'t been persisted to the database');
 		}
@@ -88,7 +88,7 @@ class Nesty extends Crud
 	 */
 	public function root()
 	{
-		if ($this->exists())
+		if ( ! $this->is_new())
 		{
 			throw new NestyException('Build functionality to move existing nesties to be a new root');
 		}
@@ -142,7 +142,7 @@ class Nesty extends Crud
 	 */
 	public function child_of(Nesty &$parent, $position)
 	{
-		if ( ! $parent->exists())
+		if ($parent->is_new())
 		{
 			throw new NestyException('The parent Nesty model must exist before you can assign children to it.');
 		}
@@ -156,7 +156,7 @@ class Nesty extends Crud
 		$parent->children = array();
 
 		// If we haven't been saved to the database before
-		if ( ! $this->exists())
+		if ($this->is_new())
 		{
 			// Setup our limits
 			$this->{static::$nesty_cols['left']} = ($position === 'first') ? $parent->{static::$nesty_cols['left']} + 1 : $parent->{static::$nesty_cols['right']};
@@ -238,7 +238,7 @@ class Nesty extends Crud
 	 */
 	public function sibling_of(Nesty &$sibling, $position)
 	{
-		if ( ! $sibling->exists())
+		if ($sibling->is_new())
 		{
 			throw new NestyException('The sibling Nesty model must exist before you can assign new siblings to it.');
 		}
@@ -252,7 +252,7 @@ class Nesty extends Crud
 		$sibling->children = array();
 
 		// If we haven't been saved to the database before
-		if ( ! $this->exists())
+		if ($this->is_new())
 		{
 			// Setup our limits
 			$this->{static::$nesty_cols['left']}  = ($position === 'previous') ? $sibling->{static::$nesty_cols['left']} : $sibling->{static::$nesty_cols['right']} + 1;
