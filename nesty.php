@@ -453,7 +453,7 @@ QUERY;
 		foreach ($children_array as $child)
 		{
 			// Create an existing model
-			$nesty = new static($child, false);
+			$nesty = new static($child);
 
 			// Number of stack items
 			$l = count($stack);
