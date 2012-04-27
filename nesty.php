@@ -88,19 +88,38 @@ class Nesty extends Crud
 	 */
 	public function root()
 	{
-		if ( ! $this->is_new())
+		// Create a new root nesty
+		if ($this->is_new())
 		{
-			throw new NestyException('Build functionality to move existing nesties to be a new root');
+			// Set the left and right limit of the nesty
+			$this->{static::$nesty_cols['left']}  = 1;
+			$this->{static::$nesty_cols['right']} = 2;
+
+			// Tree identifier
+			$this->{static::$nesty_cols['tree']} = (int) $this->query()->max(static::$nesty_cols['tree']) + 1;
+
+			return $this->save();
 		}
 
-		// Set the left and right limit of the nesty
-		$this->{static::$nesty_cols['left']}  = 1;
-		$this->{static::$nesty_cols['right']} = 2;
+		// Already a root node
+		elseif ($this->is_root())
+		{
+			return $this;
+		}
 
-		// Tree identifier
-		$this->{static::$nesty_cols['tree']} = (int) $this->query()->max(static::$nesty_cols['tree']) + 1;
+		// Make an existing nesty a root
+		else
+		{
+			// Remove existing from tree
+			$this->remove_from_tree();
 
-		return $this->save();
+			// Move to new tree
+			$this->move_to_tree((int) $this->query()->max(static::$nesty_cols['tree']) + 1);
+
+			// Reinsert in the tree, make our left 1 as
+			// we're on a new tree
+			return $this->reinsert_in_tree(1);
+		}
 	}
 
 	/*
@@ -296,9 +315,19 @@ class Nesty extends Crud
 
 	/*
 	|-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
-	| Protected Nesty helper methods
+	| Nesty helper methods
 	|-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 	*/
+
+	/**
+	 * Determines if the nesty is a root model.
+	 *
+	 * @return bool
+	 */
+	public function is_root()
+	{
+		return $this->{static::$nesty_cols['left']} == 1;
+	}
 
 	/**
 	 * Move a nesty to a new tree
@@ -308,9 +337,21 @@ class Nesty extends Crud
 	 */
 	protected function move_to_tree($tree)
 	{
-		$this->{static::$nesty_cols['tree']} = $tree;
-		$this->save();
-		return $this;
+		// $this->{static::$nesty_cols['tree']} = $tree;
+		// $this->save();
+
+		// We move this and all children to the new tree
+		$this->query()
+		     ->where(static::$nesty_cols['left'], 'BETWEEN', DB::raw($this->{static::$nesty_cols['left']}.' AND '.$this->{static::$nesty_cols['right']}))
+		     ->where(static::$nesty_cols['tree'], '=', $this->{static::$nesty_cols['tree']})
+		     ->update(array(
+		     	static::$nesty_cols['tree'] => $tree,
+		     ));
+
+		// Reset cached children
+		$this->children = array();
+
+		return $this->reload();
 	}
 
 	/**
