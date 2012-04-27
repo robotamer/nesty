@@ -312,6 +312,95 @@ class Nesty extends Crud
 		return $this;
 	}
 
+	/*
+	|--------------------------------------------------------------------------
+	| Reading - getting children
+	|--------------------------------------------------------------------------
+	*/
+
+	public function get_children($limit = false)
+	{
+		return $this->query_children(1);
+	}
+
+	/**
+	 * Queries the database for all children
+	 * nodes of the current nesty model.
+	 *
+	 * This method is used in conjunction with
+	 * Nesty::hydrate_children() by
+	 * Nesty::get_children() [the public method]
+	 * to retrieve a hierarchical array of children.
+	 *
+	 * @param   int  $limit
+	 * @return  array
+	 */
+	protected function query_children($limit = false)
+	{
+		// Table name
+		$table = static::table();
+
+		// Primary key
+		$key   = static::$key;
+
+		// Nesty cols
+		extract(static::$nesty_cols, EXTR_PREFIX_ALL, 'n');
+
+		print_r(get_defined_vars());
+
+		// This is the magical query that is the sole
+		// reason we're using the MPTT pattern
+		$sql = <<<QUERY
+SELECT   `nesty`.`$key`,
+         `nesty`.`$n_left`,
+         `nesty`.`$n_right`,
+         (COUNT(`parent`.`$key`) - (`sub_tree`.`depth` + 1)) AS `depth`
+
+FROM     `$table` AS `nesty`,
+         `$table` AS `parent`,
+         `$table` AS `sub_parent`,
+         (
+             SELECT `nesty`.`$key`,
+                    (COUNT(`parent`.`$key`) - 1) AS `depth`
+
+             FROM   `$table` AS `nesty`,
+                    `$table` AS `parent`
+
+             WHERE  `nesty`.`$n_left`  BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
+             AND    `nesty`.`$key`     = {$this->{static::$key}}
+             AND    `nesty`.`$n_tree`  = {$this->{$n_tree}}
+             AND    `parent`.`$n_tree` = {$this->{$n_tree}}
+
+             GROUP BY `nesty`.`$key`
+
+             ORDER BY `nesty`.`$n_left`
+         ) AS `sub_tree`
+
+WHERE    `nesty`.`$n_left`   BETWEEN `parent`.`$n_left`     AND `parent`.`$n_right`
+AND      `nesty`.`$n_left`   BETWEEN `sub_parent`.`$n_left` AND `sub_parent`.`$n_right`
+AND      `sub_parent`.`$key` = `sub_tree`.`$key`
+AND      `nesty`.`$n_tree`   = {$this->{$n_tree}}
+AND      `parent`.`$n_tree`  = {$this->{$n_tree}}
+
+GROUP BY `nesty`.`$key`
+
+HAVING   `depth` > 0
+QUERY;
+
+		// If we have a limit
+		if ($limit)
+		{
+			$sql .= PHP_EOL.'AND      `depth` <= '.$limit;
+		}
+
+		// Finally, add an ORDER BY
+		$sql .= str_repeat(PHP_EOL, 2).'ORDER BY `nesty`.`'.$n_left.'`';
+
+
+		$query = DB::query($sql);
+
+		return $query;
+	}
 
 	/*
 	|-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
