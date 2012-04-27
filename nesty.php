@@ -318,9 +318,46 @@ class Nesty extends Crud
 	|--------------------------------------------------------------------------
 	*/
 
-	public function get_children($limit = false)
+	/**
+	 * Get the children for this model.
+	 *
+	 * @param   int   $limit
+	 * @return  array
+	 */
+	public function children($limit = false)
 	{
-		return $this->query_children(1);
+		// If we have set the children property as
+		// false, there are no children
+		if ($this->children === false)
+		{
+			return array();
+		}
+
+		// Lazy load children
+		if (empty($this->children))
+		{
+			// Get an array of children from the database
+			$children_array = $this->query_children_array($limit);
+
+			// If we got an empty array of children
+			if (empty($children_array))
+			{
+				$this->children === false;
+				return $this->children();
+			}
+
+			// Hydrate our children. If hydrate children
+			// returns false, there are no children for this
+			// model. That means that $this->children === false,
+			// so we call this same method again which handles empty
+			// children
+			if ($this->fill_children($children_array) === false)
+			{
+				return $this->children();
+			}
+		}
+
+		return $this->children;
 	}
 
 	/**
@@ -335,7 +372,7 @@ class Nesty extends Crud
 	 * @param   int  $limit
 	 * @return  array
 	 */
-	protected function query_children($limit = false)
+	protected function query_children_array($limit = false)
 	{
 		// Table name
 		$table = static::table();
@@ -346,12 +383,11 @@ class Nesty extends Crud
 		// Nesty cols
 		extract(static::$nesty_cols, EXTR_PREFIX_ALL, 'n');
 
-		print_r(get_defined_vars());
-
 		// This is the magical query that is the sole
 		// reason we're using the MPTT pattern
 		$sql = <<<QUERY
 SELECT   `nesty`.`$key`,
+         `nesty`.`name`,
          `nesty`.`$n_left`,
          `nesty`.`$n_right`,
          (COUNT(`parent`.`$key`) - (`sub_tree`.`depth` + 1)) AS `depth`
@@ -396,10 +432,74 @@ QUERY;
 		// Finally, add an ORDER BY
 		$sql .= str_repeat(PHP_EOL, 2).'ORDER BY `nesty`.`'.$n_left.'`';
 
+		// And return the array of results
+		return DB::query($sql);
+	}
 
-		$query = DB::query($sql);
+	/**
+	 * Fills the children property of this model
+	 * hierarchically using the flat array provided
+	 *
+	 * @param   array  $children
+	 * @return  Nesty
+	 */
+	protected function fill_children(array $children_array = array())
+	{
+		// Set up some vars used for
+		// iterating
+		$l     = 0;
+		$stack = array();
 
-		return $query;
+		foreach ($children_array as $child)
+		{
+			// Create an existing model
+			$nesty = new static($child, false);
+
+			// Number of stack items
+			$l = count($stack);
+
+			// Check if we're dealing with different levels
+			while ($l > 0 and $stack[$l - 1]->depth >= $nesty->depth)
+			{
+				array_pop($stack);
+				$l--;
+			}
+
+			// Stack is empty (we are inspecting the root)
+			if ($l == 0)
+			{
+				// Assigning the root nesty
+				$i = count($this->children);
+				$this->children[$i] = $nesty;
+				$stack[] = &$this->children[$i];
+			}
+
+			// Add nesty to parent
+			else
+			{
+				$i = count($stack[$l - 1]->children);
+				$stack[$l - 1]->children[$i] = $nesty;
+				$stack[] = &$stack[$l - 1]->children[$i];
+			}
+
+			// If the child has no children,
+			// set the children property to false
+			// so next time they're queried it saves
+			// another database query
+			if (empty($nesty->children))
+			{
+				$nesty->children = false;
+			}
+		}
+
+		// If we have no children, return false
+		// as Nesty::children() handles that for us
+		if (empty($this->children))
+		{
+			return false;
+		}
+
+		return $this;
 	}
 
 	/*
