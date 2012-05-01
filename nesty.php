@@ -13,6 +13,7 @@ namespace Nesty;
 
 use DB;
 use Crud;
+use Log;
 
 /**
  * Nesty model class.
@@ -30,7 +31,7 @@ class Nesty extends Crud
 	 * 
 	 * @var array
 	 */
-	protected static $nesty_cols = array(
+	public static $nesty_cols = array(
 		'left'  => 'lft',
 		'right' => 'rgt',
 		'name'  => 'name',
@@ -188,6 +189,9 @@ class Nesty extends Crud
 			// our left limit and is 2 wide (the width of an empty
 			// nesty)
 			$this->gap($this->{static::$nesty_cols['left']});
+
+			// Reload parent
+			$parent->reload();
 
 			$this->save();
 		}
@@ -500,6 +504,55 @@ QUERY;
 		}
 
 		return $this;
+	}
+
+	/*
+	|--------------------------------------------------------------------------
+	| Regenerating from array
+	|--------------------------------------------------------------------------
+	*/
+
+	public static function create_from_hierarchy(array $items)
+	{
+		DB::query('TRUNCATE menus');
+
+		try
+		{
+			// Firstly, create a root model
+			$root = new static(array(
+				'name' => 'Root Item',
+			));
+			$root->root();
+
+			// Log::nesty(print_r($items, true));
+
+			// Loop through items
+			foreach ($items as $item)
+			{
+				$root = static::find(1);
+				static::insert_recursive($item, $root);
+			}
+		}
+		catch (\Exception $e)
+		{
+			Log::error($e->getMessage());
+		}
+	}
+
+	protected static function insert_recursive(array $item = array(), Nesty &$parent)
+	{
+		$item_m = new static(array(
+			'name' => $item['id']
+		));
+		$item_m->last_child_of($parent);
+
+		if (isset($item['children']) and is_array($item['children']) and count($item['children']) > 0)
+		{
+			foreach ($item['children'] as $child)
+			{
+				static::insert_recursive($child, $item_m);
+			}
+		}
 	}
 
 	/*
