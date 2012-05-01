@@ -512,7 +512,14 @@ QUERY;
 	|--------------------------------------------------------------------------
 	*/
 
-	public static function create_from_hierarchy(array $items)
+	/**
+	 * Creates a new Nesty tree based on the hierarchy
+	 * of items passed as the first parameter.
+	 *
+	 * @param  array  $items
+	 * @return Nesty
+	 */
+	public static function create_from_hierarchy_array(array $items)
 	{
 		DB::query('TRUNCATE menus');
 
@@ -523,8 +530,6 @@ QUERY;
 				'name' => 'Root Item',
 			));
 			$root->root();
-
-			// Log::nesty(print_r($items, true));
 
 			// Loop through items
 			foreach ($items as $item)
@@ -541,14 +546,17 @@ QUERY;
 
 	protected static function insert_recursive(array $item = array(), Nesty &$parent)
 	{
-		$item_m = new static(array(
-			'name' => $item['id']
-		));
+		if ($children = (isset($item['children']) and is_array($item['children']) and count($item['children']) > 0) ? $item['children'] : false)
+		{
+			unset($item['children']);
+		}
+
+		$item_m = new static($item);
 		$item_m->last_child_of($parent);
 
-		if (isset($item['children']) and is_array($item['children']) and count($item['children']) > 0)
+		if ($children !== false)
 		{
-			foreach ($item['children'] as $child)
+			foreach ($children as $child)
 			{
 				static::insert_recursive($child, $item_m);
 			}
