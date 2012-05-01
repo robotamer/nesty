@@ -31,7 +31,7 @@ class Nesty extends Crud
 	 * 
 	 * @var array
 	 */
-	public static $nesty_cols = array(
+	protected static $_nesty_cols = array(
 		'left'  => 'lft',
 		'right' => 'rgt',
 		'name'  => 'name',
@@ -70,7 +70,7 @@ class Nesty extends Crud
 	 */
 	public function size()
 	{
-		return $this->{static::$nesty_cols['right']} - $this->{static::$nesty_cols['left']};
+		return $this->{static::$_nesty_cols['right']} - $this->{static::$_nesty_cols['left']};
 	}
 
 	/*
@@ -93,11 +93,11 @@ class Nesty extends Crud
 		if ($this->is_new())
 		{
 			// Set the left and right limit of the nesty
-			$this->{static::$nesty_cols['left']}  = 1;
-			$this->{static::$nesty_cols['right']} = 2;
+			$this->{static::$_nesty_cols['left']}  = 1;
+			$this->{static::$_nesty_cols['right']} = 2;
 
 			// Tree identifier
-			$this->{static::$nesty_cols['tree']} = (int) $this->query()->max(static::$nesty_cols['tree']) + 1;
+			$this->{static::$_nesty_cols['tree']} = (int) $this->query()->max(static::$_nesty_cols['tree']) + 1;
 
 			return $this->save();
 		}
@@ -115,7 +115,7 @@ class Nesty extends Crud
 			$this->remove_from_tree();
 
 			// Move to new tree
-			$this->move_to_tree((int) $this->query()->max(static::$nesty_cols['tree']) + 1);
+			$this->move_to_tree((int) $this->query()->max(static::$_nesty_cols['tree']) + 1);
 
 			// Reinsert in the tree, make our left 1 as
 			// we're on a new tree
@@ -179,16 +179,16 @@ class Nesty extends Crud
 		if ($this->is_new())
 		{
 			// Setup our limits
-			$this->{static::$nesty_cols['left']} = ($position === 'first') ? $parent->{static::$nesty_cols['left']} + 1 : $parent->{static::$nesty_cols['right']};
-			$this->{static::$nesty_cols['right']} = $this->{static::$nesty_cols['left']} + 1;
+			$this->{static::$_nesty_cols['left']} = ($position === 'first') ? $parent->{static::$_nesty_cols['left']} + 1 : $parent->{static::$_nesty_cols['right']};
+			$this->{static::$_nesty_cols['right']} = $this->{static::$_nesty_cols['left']} + 1;
 
 			// Set our tree identifier to match the parent
-			$this->{static::$nesty_cols['tree']} = $parent->{static::$nesty_cols['tree']};
+			$this->{static::$_nesty_cols['tree']} = $parent->{static::$_nesty_cols['tree']};
 
 			// Create a gap a gap in the tree that starts at
 			// our left limit and is 2 wide (the width of an empty
 			// nesty)
-			$this->gap($this->{static::$nesty_cols['left']});
+			$this->gap($this->{static::$_nesty_cols['left']});
 
 			// Reload parent
 			$parent->reload();
@@ -206,13 +206,13 @@ class Nesty extends Crud
 			$parent->reload();
 
 			// If we are moving between trees
-			if ($this->{static::$nesty_cols['tree']} !== $parent->{static::$nesty_cols['tree']})
+			if ($this->{static::$_nesty_cols['tree']} !== $parent->{static::$_nesty_cols['tree']})
 			{
-				$this->move_to_tree($parent->{static::$nesty_cols['tree']});
+				$this->move_to_tree($parent->{static::$_nesty_cols['tree']});
 			}
 
 			// Determine our new left position
-			$new_left = ($position === 'first') ? $parent->{static::$nesty_cols['left']} + 1 : $parent->{static::$nesty_cols['right']};
+			$new_left = ($position === 'first') ? $parent->{static::$_nesty_cols['left']} + 1 : $parent->{static::$_nesty_cols['right']};
 
 			// Reinsert in tree
 			$this->reinsert_in_tree($new_left);
@@ -278,13 +278,13 @@ class Nesty extends Crud
 		if ($this->is_new())
 		{
 			// Setup our limits
-			$this->{static::$nesty_cols['left']}  = ($position === 'previous') ? $sibling->{static::$nesty_cols['left']} : $sibling->{static::$nesty_cols['right']} + 1;
-			$this->{static::$nesty_cols['right']} = $this->{static::$nesty_cols['left']} + 1;
+			$this->{static::$_nesty_cols['left']}  = ($position === 'previous') ? $sibling->{static::$_nesty_cols['left']} : $sibling->{static::$_nesty_cols['right']} + 1;
+			$this->{static::$_nesty_cols['right']} = $this->{static::$_nesty_cols['left']} + 1;
 
 			// Set our tree identifier to match the sibling
-			$this->{static::$nesty_cols['tree']} = $sibling->{static::$nesty_cols['tree']};
+			$this->{static::$_nesty_cols['tree']} = $sibling->{static::$_nesty_cols['tree']};
 
-			$this->gap($this->{static::$nesty_cols['left']})
+			$this->gap($this->{static::$_nesty_cols['left']})
 			     ->save();
 		}
 
@@ -298,13 +298,13 @@ class Nesty extends Crud
 			$sibling->reload();
 
 			// If we are moving between trees
-			if ($this->{static::$nesty_cols['tree']} !== $sibling->{static::$nesty_cols['tree']})
+			if ($this->{static::$_nesty_cols['tree']} !== $sibling->{static::$_nesty_cols['tree']})
 			{
-				$this->move_to_tree($sibling->{static::$nesty_cols['tree']});
+				$this->move_to_tree($sibling->{static::$_nesty_cols['tree']});
 			}
 
 			// Determine our new left position
-			$new_left = ($position === 'previous') ? $sibling->{static::$nesty_cols['left']}: $sibling->{static::$nesty_cols['right']} + 1;
+			$new_left = ($position === 'previous') ? $sibling->{static::$_nesty_cols['left']}: $sibling->{static::$_nesty_cols['right']} + 1;
 
 			// Reinsert in tree
 			$this->reinsert_in_tree($new_left);
@@ -385,7 +385,7 @@ class Nesty extends Crud
 		$key   = static::$key;
 
 		// Nesty cols
-		extract(static::$nesty_cols, EXTR_PREFIX_ALL, 'n');
+		extract(static::$_nesty_cols, EXTR_PREFIX_ALL, 'n');
 
 		// This is the magical query that is the sole
 		// reason we're using the MPTT pattern
@@ -508,9 +508,20 @@ QUERY;
 
 	/*
 	|--------------------------------------------------------------------------
-	| Regenerating from array
+	| Static Usage
 	|--------------------------------------------------------------------------
 	*/
+
+	/**
+	 * Returns the name of a Nesty column
+	 *
+	 * @param  string  $column
+	 * @return string
+	 */
+	public static function nesty_col($column)
+	{
+		return static::$_nesty_cols[$column];
+	}
 
 	/**
 	 * Creates a new Nesty tree based on the hierarchy
@@ -576,7 +587,7 @@ QUERY;
 	 */
 	public function is_root()
 	{
-		return $this->{static::$nesty_cols['left']} == 1;
+		return $this->{static::$_nesty_cols['left']} == 1;
 	}
 
 	/**
@@ -587,15 +598,15 @@ QUERY;
 	 */
 	protected function move_to_tree($tree)
 	{
-		// $this->{static::$nesty_cols['tree']} = $tree;
+		// $this->{static::$_nesty_cols['tree']} = $tree;
 		// $this->save();
 
 		// We move this and all children to the new tree
 		$this->query()
-		     ->where(static::$nesty_cols['left'], 'BETWEEN', DB::raw($this->{static::$nesty_cols['left']}.' AND '.$this->{static::$nesty_cols['right']}))
-		     ->where(static::$nesty_cols['tree'], '=', $this->{static::$nesty_cols['tree']})
+		     ->where(static::$_nesty_cols['left'], 'BETWEEN', DB::raw($this->{static::$_nesty_cols['left']}.' AND '.$this->{static::$_nesty_cols['right']}))
+		     ->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']})
 		     ->update(array(
-		     	static::$nesty_cols['tree'] => $tree,
+		     	static::$_nesty_cols['tree'] => $tree,
 		     ));
 
 		// Reset cached children
@@ -616,21 +627,21 @@ QUERY;
 		// We need to move our nesty so it's outside the tree.
 		// For this, our change must bring our right limit to be
 		// 0.
-		$delta = 0 - $this->{static::$nesty_cols['right']};
+		$delta = 0 - $this->{static::$_nesty_cols['right']};
 
 		// Move this model and it's children outside
 		// the tree by changing all limits by the delta
 		// calculdated above
 		$this->query()
-		     ->where(static::$nesty_cols['left'], 'BETWEEN', DB::raw($this->{static::$nesty_cols['left']}.' AND '.$this->{static::$nesty_cols['right']}))
-		     ->where(static::$nesty_cols['tree'], '=', $this->{static::$nesty_cols['tree']})
+		     ->where(static::$_nesty_cols['left'], 'BETWEEN', DB::raw($this->{static::$_nesty_cols['left']}.' AND '.$this->{static::$_nesty_cols['right']}))
+		     ->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']})
 		     ->update(array(
-		     	static::$nesty_cols['left'] => DB::raw('`'.static::$nesty_cols['left'].'` + '.$delta),
-		     	static::$nesty_cols['right'] => DB::raw('`'.static::$nesty_cols['right'].'` + '.$delta),
+		     	static::$_nesty_cols['left'] => DB::raw('`'.static::$_nesty_cols['left'].'` + '.$delta),
+		     	static::$_nesty_cols['right'] => DB::raw('`'.static::$_nesty_cols['right'].'` + '.$delta),
 		     ));
 
 		// Remove the gap we created - notice the '-' on the second param
-		$this->gap($this->{static::$nesty_cols['left']}, - ($this->size() + 1));
+		$this->gap($this->{static::$_nesty_cols['left']}, - ($this->size() + 1));
 
 		return $this->reload();
 	}
@@ -650,11 +661,11 @@ QUERY;
 		// Reinsert in new gap by moving everything between
 		// the limits the right delta 
 		$this->query()
-		     ->where(static::$nesty_cols['left'], 'BETWEEN', DB::raw((0 - $this->size()).' AND 0'))
-		     ->where(static::$nesty_cols['tree'], '=', $this->{static::$nesty_cols['tree']})
+		     ->where(static::$_nesty_cols['left'], 'BETWEEN', DB::raw((0 - $this->size()).' AND 0'))
+		     ->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']})
 		     ->update(array(
-		     	static::$nesty_cols['left'] => DB::raw('`'.static::$nesty_cols['left'].'` + '.($left + $this->size())),
-		     	static::$nesty_cols['right'] => DB::raw('`'.static::$nesty_cols['right'].'` + '.($left + $this->size())),
+		     	static::$_nesty_cols['left'] => DB::raw('`'.static::$_nesty_cols['left'].'` + '.($left + $this->size())),
+		     	static::$_nesty_cols['right'] => DB::raw('`'.static::$_nesty_cols['right'].'` + '.($left + $this->size())),
 		     ));
 
 		return $this;
@@ -677,21 +688,21 @@ QUERY;
 
 		if ($tree === null)
 		{
-			$tree = $this->{static::$nesty_cols['tree']};
+			$tree = $this->{static::$_nesty_cols['tree']};
 		}
 
 		$this->query()
-		      ->where(static::$nesty_cols['left'], '>=', $start)
-		      ->where(static::$nesty_cols['tree'], '=', $tree)
+		      ->where(static::$_nesty_cols['left'], '>=', $start)
+		      ->where(static::$_nesty_cols['tree'], '=', $tree)
 		      ->update(array(
-		      	static::$nesty_cols['left'] => DB::raw('`'.static::$nesty_cols['left'].'` + '.$size),
+		      	static::$_nesty_cols['left'] => DB::raw('`'.static::$_nesty_cols['left'].'` + '.$size),
 		      ));
 
 		$this->query()
-		      ->where(static::$nesty_cols['right'], '>=', $start)
-		      ->where(static::$nesty_cols['tree'], '=', $tree)
+		      ->where(static::$_nesty_cols['right'], '>=', $start)
+		      ->where(static::$_nesty_cols['tree'], '=', $tree)
 		      ->update(array(
-		      	static::$nesty_cols['right'] => DB::raw('`'.static::$nesty_cols['right'].'` + '.$size),
+		      	static::$_nesty_cols['right'] => DB::raw('`'.static::$_nesty_cols['right'].'` + '.$size),
 		      ));
 
 		return $this;
