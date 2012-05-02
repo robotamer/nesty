@@ -47,6 +47,11 @@ class Nesty extends Crud
 	public $children = array();
 
 	/**
+	 * @todo support 
+	 */
+	protected static $_timestamps = false;
+
+	/**
 	 * Reloads the current model from the database.
 	 *
 	 * @return  Nesty
@@ -532,8 +537,6 @@ QUERY;
 	 */
 	public static function create_from_hierarchy_array(array $items)
 	{
-		DB::query('TRUNCATE menus');
-
 		try
 		{
 			// Firstly, create a root model
@@ -579,6 +582,18 @@ QUERY;
 	| Nesty helper methods
 	|-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 	*/
+
+	/**
+	 * Get all the attributes of the model.
+	 *
+	 * @return array
+	 */
+	public function attributes()
+	{
+		$attributes = get_object_public_vars($this);
+		unset($attributes['children']);
+		return $attributes;
+	}
 
 	/**
 	 * Determines if the nesty is a root model.
