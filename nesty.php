@@ -58,7 +58,7 @@ class Nesty extends Crud
 			throw new NestyException('You cannot call reload() on a model that hasn\'t been persisted to the database');
 		}
 
-		$this->fill($this->query()->where(static::$key, '=', $this->{static::$key})->first());
+		$this->fill($this->query()->where(static::key(), '=', $this->{static::key()})->first());
 
 		return $this;
 	}
@@ -382,7 +382,7 @@ class Nesty extends Crud
 		$table = static::table();
 
 		// Primary key
-		$key   = static::$key;
+		$key   = static::key();
 
 		// Nesty cols
 		extract(static::$_nesty_cols, EXTR_PREFIX_ALL, 'n');
@@ -407,7 +407,7 @@ FROM     `$table` AS `nesty`,
                     `$table` AS `parent`
 
              WHERE  `nesty`.`$n_left`  BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
-             AND    `nesty`.`$key`     = {$this->{static::$key}}
+             AND    `nesty`.`$key`     = {$this->{static::key()}}
              AND    `nesty`.`$n_tree`  = {$this->{$n_tree}}
              AND    `parent`.`$n_tree` = {$this->{$n_tree}}
 
