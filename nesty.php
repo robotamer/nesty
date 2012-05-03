@@ -331,9 +331,10 @@ class Nesty extends Crud
 	 * Get the children for this model.
 	 *
 	 * @param   int   $limit
+	 * @param   array $columns
 	 * @return  array
 	 */
-	public function children($limit = false)
+	public function children($limit = false, $columns = array('*'))
 	{
 		// If we have set the children property as
 		// false, there are no children
@@ -346,7 +347,7 @@ class Nesty extends Crud
 		if (empty($this->children))
 		{
 			// Get an array of children from the database
-			$children_array = $this->query_children_array($limit);
+			$children_array = $this->query_children_array($limit, $columns);
 
 			// If we got an empty array of children
 			if (empty($children_array))
@@ -378,10 +379,11 @@ class Nesty extends Crud
 	 * Nesty::get_children() [the public method]
 	 * to retrieve a hierarchical array of children.
 	 *
-	 * @param   int  $limit
+	 * @param   int   $limit
+	 * @param   array $columns
 	 * @return  array
 	 */
-	protected function query_children_array($limit = false)
+	protected function query_children_array($limit = false, $columns = array('*'))
 	{
 		// Table name
 		$table = static::table();
@@ -392,13 +394,18 @@ class Nesty extends Crud
 		// Nesty cols
 		extract(static::$_nesty_cols, EXTR_PREFIX_ALL, 'n');
 
+		// Work out the columns to select
+		$sql_columns = '';
+		foreach ($columns as $column)
+		{
+			$sql_columns .= ' `nesty`.'.($column == '*' ? $column : '`'.$column.'`');
+		}
+
+
 		// This is the magical query that is the sole
 		// reason we're using the MPTT pattern
 		$sql = <<<QUERY
-SELECT   `nesty`.`$key`,
-         `nesty`.`name`,
-         `nesty`.`$n_left`,
-         `nesty`.`$n_right`,
+SELECT   $sql_columns,
          (COUNT(`parent`.`$key`) - (`sub_tree`.`depth` + 1)) AS `depth`
 
 FROM     `$table` AS `nesty`,
