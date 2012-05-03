@@ -54,18 +54,55 @@ class Nesty extends Crud
 	/**
 	 * Reloads the current model from the database.
 	 *
+	 * If you choose the 'override' option, all of your
+	 * fields will be overridden with those from the database.
+	 * If you don't, only the fields relevent to Nesty's operations
+	 * will be.
+	 *
+	 * @param   bool  $override
 	 * @return  Nesty
 	 */
-	public function reload()
+	public function reload($override_non_nesty = true)
 	{
 		if ($this->is_new())
 		{
-			throw new NestyException('You cannot call reload() on a model that hasn\'t been persisted to the database');
+			throw new NestyException('You cannot call reload_nesty_cols() on a model that hasn\'t been persisted to the database');
 		}
 
-		$this->fill($this->query()->where(static::key(), '=', $this->{static::key()})->first());
+		// Get Attributes
+		$attributes = $this->query()->where(static::key(), '=', $this->{static::key()})->first();
+
+		// Overriding all
+		if ($override_non_nesty === true)
+		{
+			$this->fill($attributes);
+		}
+
+		// Only overriding nesty cols
+		else
+		{
+			$to_override = array();
+
+			foreach (static::$_nesty_cols as $attribute)
+			{
+				$to_override[$attribute] = $attributes->{$attribute};
+			}
+
+			$this->fill($to_override);
+		}
 
 		return $this;
+	}
+
+	/**
+	 * Alias for reload(), but only reloads
+	 * Nesty cols.
+	 *
+	 * @return  Nesty
+	 */
+	public function reload_nesty_cols()
+	{
+		return $this->reload(false);
 	}
 
 	/**
@@ -196,7 +233,7 @@ class Nesty extends Crud
 			$this->gap($this->{static::$_nesty_cols['left']});
 
 			// Reload parent
-			$parent->reload();
+			$parent->reload_nesty_cols();
 
 			$this->save();
 		}
@@ -208,7 +245,7 @@ class Nesty extends Crud
 			$this->remove_from_tree();
 
 			// Reload parent
-			$parent->reload();
+			$parent->reload_nesty_cols();
 
 			// If we are moving between trees
 			if ($this->{static::$_nesty_cols['tree']} !== $parent->{static::$_nesty_cols['tree']})
@@ -300,7 +337,7 @@ class Nesty extends Crud
 			$this->remove_from_tree();
 
 			// Reload sibling
-			$sibling->reload();
+			$sibling->reload_nesty_cols();
 
 			// If we are moving between trees
 			if ($this->{static::$_nesty_cols['tree']} !== $sibling->{static::$_nesty_cols['tree']})
@@ -536,50 +573,81 @@ QUERY;
 	}
 
 	/**
-	 * Creates a new Nesty tree based on the hierarchy
-	 * of items passed as the first parameter.
+	 * Creates or updates a Nesty tree structure based on
+	 * the hierarchical array of items passed through. 
 	 *
+	 * @param  int    $id
 	 * @param  array  $items
 	 * @return Nesty
 	 */
-	public static function create_from_hierarchy_array(array $items)
+	public static function from_hierarchy_array($id, array $items)
 	{
-		try
+		if ($id)
+		{
+			$root = static::find($id);
+
+			if ($root === null)
+			{
+				throw new \Exception('Trying to update from non-existent root Nesty model.');
+			}
+
+			if ( ! $root->is_root())
+			{
+				throw new \Exception('Passing ID of non-root Nesty model.');
+			}
+		}
+		else
 		{
 			// Firstly, create a root model
 			$root = new static(array(
 				'name' => 'Root Item',
 			));
 			$root->root();
-
-			// Loop through items
-			foreach ($items as $item)
-			{
-				$root = static::find(1);
-				static::insert_recursive($item, $root);
-			}
 		}
-		catch (\Exception $e)
+
+		// Loop through items
+		foreach ($items as $item)
 		{
-			Log::error($e->getMessage());
+			$root->reload_nesty_cols();
+			// $root = static::find(1);
+			static::recursive_from_array($item, $root);
 		}
 	}
 
-	protected static function insert_recursive(array $item = array(), Nesty &$parent)
+	protected static function recursive_from_array(array $item = array(), Nesty &$parent)
 	{
 		if ($children = (isset($item['children']) and is_array($item['children']) and count($item['children']) > 0) ? $item['children'] : false)
 		{
 			unset($item['children']);
 		}
 
-		$item_m = new static($item);
-		$item_m->last_child_of($parent);
+		// Are we creating a new item or
+		// updating existing item?
+		if (isset($item[static::key()]))
+		{
+			$item_m = static::find($item[static::key()]);
+
+			if ($item_m === null)
+			{
+				throw new \Exception('Trying to update from non-existent Nesty model.');
+			}
+
+			$item_m->last_child_of($parent)
+			       ->reload_nesty_cols()
+			       ->save();
+		}
+		else
+		{
+			$item_m = new static($item);
+			$item_m->last_child_of($parent)->reload_nesty_cols()
+			       ->save();
+		}
 
 		if ($children !== false)
 		{
 			foreach ($children as $child)
 			{
-				static::insert_recursive($child, $item_m);
+				static::recursive_from_array($child, $item_m);
 			}
 		}
 	}
@@ -634,7 +702,7 @@ QUERY;
 		// Reset cached children
 		$this->children = array();
 
-		return $this->reload();
+		return $this->reload_nesty_cols();
 	}
 
 	/**
@@ -665,7 +733,7 @@ QUERY;
 		// Remove the gap we created - notice the '-' on the second param
 		$this->gap($this->{static::$_nesty_cols['left']}, - ($this->size() + 1));
 
-		return $this->reload();
+		return $this->reload_nesty_cols();
 	}
 
 	/**
