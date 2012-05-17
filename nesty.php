@@ -6,7 +6,7 @@
  * @version    1.0
  * @author     Cartalyst LLC
  * @license    MIT License
- * @copyright  2012 Cartalyst LLC
+ * @copyright  (c) 2011 - 2012, Cartalyst LLC
  * @link       http://cartalyst.com
  */
 namespace Nesty;
@@ -22,6 +22,7 @@ use Log;
  */
 class Nesty extends Crud
 {
+
 	/**
 	 * Array of nesty column default names
 	 * 
@@ -797,4 +798,5 @@ QUERY;
 
 		return $this;
 	}
+
 }
