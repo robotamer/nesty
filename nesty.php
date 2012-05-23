@@ -11,9 +11,9 @@
  */
 namespace Nesty;
 
-use DB;
 use Crud;
-use Log;
+use DB;
+use HTML;
 
 /**
  * Nesty model class.
@@ -61,13 +61,14 @@ class Nesty extends Crud
 	 * will be.
 	 *
 	 * @param   bool  $override
+	 * @throws  NestyException
 	 * @return  Nesty
 	 */
 	public function reload($override_non_nesty = true)
 	{
 		if ($this->is_new())
 		{
-			throw new NestyException('You cannot call reload_nesty_cols() on a model that hasn\'t been persisted to the database');
+			throw new NestyException('You cannot call reload_nesty_cols() on a model that hasn\'t been persisted to the database.');
 		}
 
 		// Get Attributes
@@ -201,6 +202,7 @@ class Nesty extends Crud
 	 * last child of the given parent.
 	 *
 	 * @param   Nesty  $parent
+	 * @throws  NestyException
 	 * @return  Nesty
 	 */
 	public function child_of(Nesty &$parent, $position)
@@ -212,7 +214,7 @@ class Nesty extends Crud
 
 		if ( ! in_array($position, array('first', 'last')))
 		{
-			throw new NestyException(sprintf('Position %s is not a valid position.', $position));
+			throw new NestyException("Position [$position] is not a valid position");
 		}
 
 		// Reset cached children
@@ -300,6 +302,7 @@ class Nesty extends Crud
 	 *
 	 * @param   Nesty  $sibling
 	 * @param   string $position
+	 * @throws  NestyException
 	 * @return  Nesty
 	 */
 	public function sibling_of(Nesty &$sibling, $position)
@@ -311,7 +314,7 @@ class Nesty extends Crud
 
 		if ( ! in_array($position, array('previous', 'next')))
 		{
-			throw new NestyException(sprintf('Position %s is not a valid position.', $position));
+			throw new NestyException("Position [$position] is not a valid position.");
 		}
 
 		// Reset cached children
@@ -570,6 +573,166 @@ QUERY;
 
 	/*
 	|--------------------------------------------------------------------------
+	| Debugging
+	|--------------------------------------------------------------------------
+	*/
+
+	/**
+	 * Dumps the children for the model in the given format.
+	 * Just an alias for dump_as().
+	 *
+	 * @param   string          $format
+	 * @param   string|Closure  $name
+	 * @param   string          $type
+	 * @return  mixed
+	 */
+	public function dump_children_as($format, $name = null)
+	{
+		return $this->dump_as($format, $name, 'children');
+	}
+
+	/**
+	 * Dumps either this nesty or it's
+	 * children as a particular format.
+	 *
+	 * There are several formats to choose from:
+	 *
+	 * 1. Array
+	 * 2. Unordered List
+	 * 3. Ordered List
+	 * 4. JSON string
+	 * 5. XML string
+	 * 6. Serialised PHP array
+	 * 7. PHP code - can be eval()'d.
+	 *
+	 * The name parameter can either empty
+	 * at which point the `name` column (specified
+	 * in static::$_nesty_cols) is used, the name
+	 * of a column to use, or a closure based on the
+	 * nesty object that must return a string
+	 *
+	 * Type must be either 'nesty', or 'children'. Nesty
+	 * will dump this object and it's children in the
+	 * format requested, and children will dump the children
+	 * likewise.
+	 *
+	 * @param   string          $format
+	 * @param   string|Closure  $name
+	 * @param   string          $type
+	 * @throws  NestyException
+	 * @return  mixed
+	 */
+	public function dump_as($format, $name = null, $type = 'nesty')
+	{
+		// Supported formats
+		// $formats = array(
+		// 	'array', 'ul', 'ol', 'json',
+		// 	'xml', 'serialized', 'php',
+		// );
+		$formats = array(
+			'array', 'ul', 'ol',
+			'json', 'serialized',
+			'php',
+		);
+
+		// Check foramt
+		if ( ! in_array($format, $formats))
+		{
+			throw new NestyException("Format [$format] is not a valid format to dump.");
+		}
+
+		// Check valid dump type
+		if ( ! in_array($type, array('nesty', 'children')))
+		{
+			throw new NestyException("Dump type [$type] is not a valid dump type.");
+		}
+
+		// The array of dumped items
+		$dumped = array();
+
+		// Loop through and dump children
+		foreach ($this->children() as $child)
+		{
+			// If the $name parameter isn't provided
+			// we just default to the 'name' nesty column.
+			if ($name === null)
+			{
+				$child_name = $child->{static::$_nesty_cols['name']};
+			}
+
+			// If we've been given a Closure to determine the name
+			elseif (is_callable($name))
+			{
+				$child_name = $name($child);
+			}
+
+			// Otherwise, they've provided a name
+			else
+			{
+				$child_name = $child->{$name};
+			}
+
+			// If the child has children - go recursive!
+			if ($child->children())
+			{
+				$dumped[$child_name] = $child->dump_children_as('array', $name);
+			}
+			else
+			{
+				$dumped[] = $child_name;
+			}
+		}
+
+		// If the $type parameter was 'nesty',
+		// we want to include this object as well.
+		if ($type === 'nesty')
+		{
+			// If the $name parameter isn't provided
+			// we just default to the 'name' nesty column.
+			if ($name === null)
+			{
+				$nesty_name = $this->{static::$_nesty_cols['name']};
+			}
+
+			// If we've been given a Closure to determine the name
+			elseif (is_callable($name))
+			{
+				$nesty_name = $name($this);
+			}
+
+			// Otherwise, they've provided a name
+			else
+			{
+				$nesty_name = $this->{$name};
+			}
+
+			// Adjust the dumped array
+			$dumped = array($nesty_name => $dumped);
+		}
+
+		// Output based on format
+		switch ($format)
+		{
+			case 'array':
+				return $dumped;
+			case 'ul':
+				return HTML::ul($dumped);
+			case 'ol':
+				return HTML::ol($dumped);
+			case 'json':
+				return json_encode($dumped);
+			case 'serialized':
+				return serialize($dumped);
+			case 'php':
+				return var_export($dumped, true);
+		}
+
+		// Note, we can't ever get past the switch because
+		// of the check at the beginning of this method.
+	}
+
+	/*
+	|--------------------------------------------------------------------------
 	| Static Usage
 	|--------------------------------------------------------------------------
 	*/
@@ -591,6 +754,7 @@ QUERY;
 	 *
 	 * @param  int    $id
 	 * @param  array  $items
+	 * @throws NestyException
 	 * @return Nesty
 	 */
 	public static function from_hierarchy_array($id, array $items)
@@ -601,12 +765,12 @@ QUERY;
 
 			if ($root === null)
 			{
-				throw new \Exception('Trying to update from non-existent root Nesty model.');
+				throw new NestyException('Trying to update from non-existent root Nesty model.');
 			}
 
 			if ( ! $root->is_root())
 			{
-				throw new \Exception('Passing ID of non-root Nesty model.');
+				throw new NestyException('Passing ID of non-root Nesty model.');
 			}
 		}
 		else
@@ -622,11 +786,21 @@ QUERY;
 		foreach ($items as $item)
 		{
 			$root->reload_nesty_cols();
-			// $root = static::find(1);
+
 			static::recursive_from_array($item, $root);
 		}
+
+		return $root;
 	}
 
+	/**
+	 * Recursively creates Nesty objects from an array.
+	 *
+	 * @param  array  $item
+	 * @param  Nesty  $parent
+	 * @throws NestyException
+	 * @return void
+	 */
 	protected static function recursive_from_array(array $item = array(), Nesty &$parent)
 	{
 		if ($children = (isset($item['children']) and is_array($item['children']) and count($item['children']) > 0) ? $item['children'] : false)
@@ -642,7 +816,7 @@ QUERY;
 
 			if ($item_m === null)
 			{
-				throw new \Exception('Trying to update from non-existent Nesty model.');
+				throw new NestyException('Trying to update from non-existent Nesty model.');
 			}
 
 			$item_m->last_child_of($parent)
