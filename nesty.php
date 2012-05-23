@@ -13,7 +13,10 @@ namespace Nesty;
 
 use Crud;
 use DB;
+use Exception;
 use HTML;
+
+class NestyException extends Exception {}
 
 /**
  * Nesty model class.
@@ -601,9 +604,8 @@ QUERY;
 	 * 2. Unordered List
 	 * 3. Ordered List
 	 * 4. JSON string
-	 * 5. XML string
-	 * 6. Serialised PHP array
-	 * 7. PHP code - can be eval()'d.
+	 * 5. Serialised PHP array
+	 * 6. PHP code - can be eval()'d.
 	 *
 	 * The name parameter can either empty
 	 * at which point the `name` column (specified
@@ -625,10 +627,6 @@ QUERY;
 	public function dump_as($format, $name = null, $type = 'nesty')
 	{
 		// Supported formats
-		// $formats = array(
-		// 	'array', 'ul', 'ol', 'json',
-		// 	'xml', 'serialized', 'php',
-		// );
 		$formats = array(
 			'array', 'ul', 'ol',
 			'json', 'serialized',
