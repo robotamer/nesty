@@ -366,6 +366,18 @@ class Nesty extends Crud
 	*/
 
 	/**
+	 * Gets the direct children for this model. Just an
+	 * alias for get_children().
+	 *
+	 * @param   array $columns
+	 * @return  array
+	 */
+	public function direct_children($columns = array('*'))
+	{
+		return $this->children(1, $columns);
+	}
+
+	/**
 	 * Get the children for this model.
 	 *
 	 * @param   int   $limit
