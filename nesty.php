@@ -419,6 +419,7 @@ class Nesty extends Crud
 			// children
 			if ($this->fill_children($children_array) === false)
 			{
+				$this->children = false;
 				return $this->children();
 			}
 		}
@@ -552,15 +553,6 @@ QUERY;
 				$i = count($stack[$l - 1]->children);
 				$stack[$l - 1]->children[$i] = $nesty;
 				$stack[] = &$stack[$l - 1]->children[$i];
-			}
-
-			// If the child has no children,
-			// set the children property to false
-			// so next time they're queried it saves
-			// another database query
-			if (empty($nesty->children))
-			{
-				$nesty->children = false;
 			}
 		}
 
