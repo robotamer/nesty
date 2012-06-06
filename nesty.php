@@ -417,7 +417,7 @@ class Nesty extends Crud
 			// If we got an empty array of children
 			if (empty($children_array))
 			{
-				$this->children === false;
+				$this->children = false;
 				return $this->children();
 			}
 
@@ -466,7 +466,6 @@ class Nesty extends Crud
 		{
 			$sql_columns .= ' `nesty`.'.($column == '*' ? $column : '`'.$column.'`');
 		}
-
 
 		// This is the magical query that is the sole
 		// reason we're using the MPTT pattern
