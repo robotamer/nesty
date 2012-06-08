@@ -60,11 +60,6 @@ class Nesty extends Crud
 	public $children = array();
 
 	/**
-	 * @todo support 
-	 */
-	protected static $_timestamps = false;
-
-	/**
 	 * Reloads the current model from the database.
 	 *
 	 * If you choose the 'override' option, all of your
@@ -137,9 +132,6 @@ class Nesty extends Crud
 
 	/**
 	 * Makes the current model a root nesty.
-	 *
-	 * @todo Allow existing objects to move to
-	 *       be root objects.
 	 *
 	 * @return  bool
 	 */
@@ -748,11 +740,12 @@ QUERY;
 	 *
 	 * @param  int      $id
 	 * @param  array    $items
+	 * @param  Closure  $before_root_persist
 	 * @param  Closure  $before_persist
 	 * @throws NestyException
 	 * @return Nesty
 	 */
-	public static function from_hierarchy_array($id, array $items, Closure $before_persist = null)
+	public static function from_hierarchy_array($id, array $items, Closure $before_root_persist = null, Closure $before_persist = null)
 	{
 		if ($id)
 		{
@@ -767,22 +760,25 @@ QUERY;
 			{
 				throw new NestyException('Passing ID of non-root Nesty model.');
 			}
+
+			// If the user has provided a function to manipulate
+			// the menu object before it's inserted
+			if ($before_root_persist !== null and ($result = $before_root_persist($root)) !== false)
+			{
+				$root = $result;
+				$root->save();
+			}
 		}
 		else
 		{
 			// Firstly, create a root model
-			$root = new static(array(
-				// static::$_nesty_cols['name'] => 'Root Item',
-				/**
-				 * @todo allow for a closure for the top item
-				 */
-			));
+			$root = new static();
 
 			// If the user has provided a function to manipulate
 			// the menu object before it's inserted
-			if ($before_persist !== null)
+			if ($before_root_persist !== null)
 			{
-				$result = $before_persist($root);
+				$result = $before_root_persist($root);
 
 				// Returning false means no persistence
 				// To database
@@ -854,14 +850,7 @@ QUERY;
 				$item_m = $result;
 			}
 
-			
-			// $item_m->save(); // @todo look why I need this
-
-			$item_m->last_child_of($parent);
-
-
-
-			$item_m
+			$item_m->last_child_of($parent)
 			       ->save();
 		}
 		else
@@ -884,7 +873,6 @@ QUERY;
 				$item_m = $result;
 			}
 
-			// $item_m->save(); // @todo look why I need this
 			$item_m->last_child_of($parent)
 			       ->save();
 		}
