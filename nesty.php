@@ -48,7 +48,6 @@ class Nesty extends Crud
 	protected static $_nesty_cols = array(
 		'left'  => 'lft',
 		'right' => 'rgt',
-		'name'  => 'name',
 		'tree'  => 'tree_id',
 	);
 
@@ -277,6 +276,9 @@ class Nesty extends Crud
 
 			// Because we have moved, reset our cached children
 			$this->children = array();
+
+			// Reload our nesty columns
+			$this->reload_nesty_cols();
 		}
 
 		return $this;
@@ -370,6 +372,9 @@ class Nesty extends Crud
 
 			// Because we have moved, reset our cached children
 			$this->children = array();
+
+			// Reload our nesty columns
+			$this->reload_nesty_cols();
 		}
 
 		return $this;
@@ -590,7 +595,7 @@ QUERY;
 	 * @param   string          $type
 	 * @return  mixed
 	 */
-	public function dump_children_as($format, $name = null)
+	public function dump_children_as($format)
 	{
 		return $this->dump_as($format, $name, 'children');
 	}
@@ -625,7 +630,7 @@ QUERY;
 	 * @throws  NestyException
 	 * @return  mixed
 	 */
-	public function dump_as($format, $name = null, $type = 'nesty')
+	public function dump_as($format, $name, $type = 'nesty')
 	{
 		// Supported formats
 		$formats = array(
@@ -652,15 +657,8 @@ QUERY;
 		// Loop through and dump children
 		foreach ($this->children() as $child)
 		{
-			// If the $name parameter isn't provided
-			// we just default to the 'name' nesty column.
-			if ($name === null)
-			{
-				$child_name = $child->{static::$_nesty_cols['name']};
-			}
-
 			// If we've been given a Closure to determine the name
-			elseif (is_callable($name))
+			if (is_callable($name))
 			{
 				$child_name = $name($child);
 			}
@@ -686,15 +684,8 @@ QUERY;
 		// we want to include this object as well.
 		if ($type === 'nesty')
 		{
-			// If the $name parameter isn't provided
-			// we just default to the 'name' nesty column.
-			if ($name === null)
-			{
-				$nesty_name = $this->{static::$_nesty_cols['name']};
-			}
-
 			// If we've been given a Closure to determine the name
-			elseif (is_callable($name))
+			if (is_callable($name))
 			{
 				$nesty_name = $name($this);
 			}
@@ -781,7 +772,10 @@ QUERY;
 		{
 			// Firstly, create a root model
 			$root = new static(array(
-				'name' => 'Root Item',
+				// static::$_nesty_cols['name'] => 'Root Item',
+				/**
+				 * @todo allow for a closure for the top item
+				 */
 			));
 
 			// If the user has provided a function to manipulate
@@ -829,7 +823,7 @@ QUERY;
 		{
 			unset($item['children']);
 		}
-
+// \Log::test('item: '.print_r($item, true));
 		// Are we creating a new item or
 		// updating existing item?
 		if (isset($item[static::key()]))
@@ -861,10 +855,13 @@ QUERY;
 			}
 
 			
-			$item_m->save(); // @todo look why I need this
+			// $item_m->save(); // @todo look why I need this
 
-			$item_m->last_child_of($parent)
-			       ->reload_nesty_cols()
+			$item_m->last_child_of($parent);
+
+
+
+			$item_m
 			       ->save();
 		}
 		else
@@ -887,9 +884,8 @@ QUERY;
 				$item_m = $result;
 			}
 
-			$item_m->save(); // @todo look why I need this
+			// $item_m->save(); // @todo look why I need this
 			$item_m->last_child_of($parent)
-			       ->reload_nesty_cols()
 			       ->save();
 		}
 
@@ -897,7 +893,7 @@ QUERY;
 		{
 			foreach ($children as $child)
 			{
-				static::recursive_from_array($child, $item_m);
+				static::recursive_from_array($child, $item_m, $before_persist);
 			}
 		}
 	}
