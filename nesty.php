@@ -20,6 +20,7 @@
 
 namespace Nesty;
 
+use Closure;
 use Crud;
 use DB;
 use Exception;
@@ -750,12 +751,17 @@ QUERY;
 	 * Creates or updates a Nesty tree structure based on
 	 * the hierarchical array of items passed through. 
 	 *
-	 * @param  int    $id
-	 * @param  array  $items
+	 * A callback may be provided for each Nesty object just
+	 * before it's persisted to the database. Returning false
+	 * from the closure means no changes are made.
+	 *
+	 * @param  int      $id
+	 * @param  array    $items
+	 * @param  Closure  $before_persist
 	 * @throws NestyException
 	 * @return Nesty
 	 */
-	public static function from_hierarchy_array($id, array $items)
+	public static function from_hierarchy_array($id, array $items, Closure $before_persist = null)
 	{
 		if ($id)
 		{
@@ -777,6 +783,23 @@ QUERY;
 			$root = new static(array(
 				'name' => 'Root Item',
 			));
+
+			// If the user has provided a function to manipulate
+			// the menu object before it's inserted
+			if ($before_persist !== null)
+			{
+				$result = $before_persist($root);
+
+				// Returning false means no persistence
+				// To database
+				if ($result === false)
+				{
+					return;
+				}
+
+				$root = $result;
+			}
+
 			$root->root();
 		}
 
@@ -785,7 +808,7 @@ QUERY;
 		{
 			$root->reload_nesty_cols();
 
-			static::recursive_from_array($item, $root);
+			static::recursive_from_array($item, $root, $before_persist);
 		}
 
 		return $root;
@@ -794,12 +817,13 @@ QUERY;
 	/**
 	 * Recursively creates Nesty objects from an array.
 	 *
-	 * @param  array  $item
-	 * @param  Nesty  $parent
+	 * @param  array    $item
+	 * @param  Nesty    $parent
+	 * @param  Closure  $before_persist
 	 * @throws NestyException
 	 * @return void
 	 */
-	protected static function recursive_from_array(array $item = array(), Nesty &$parent)
+	protected static function recursive_from_array(array $item = array(), Nesty &$parent, Closure $before_persist = null)
 	{
 		if ($children = (isset($item['children']) and is_array($item['children']) and count($item['children']) > 0) ? $item['children'] : false)
 		{
@@ -817,6 +841,28 @@ QUERY;
 				throw new NestyException('Trying to update from non-existent Nesty model.');
 			}
 
+			// Fill attributes now
+			$item_m->fill($item);
+
+			// If the user has provided a function to manipulate
+			// the menu object before it's inserted
+			if ($before_persist !== null)
+			{
+				$result = $before_persist($item_m);
+
+				// Returning false means no persistence
+				// To database
+				if ($result === false)
+				{
+					return;
+				}
+
+				$item_m = $result;
+			}
+
+			
+			$item_m->save(); // @todo look why I need this
+
 			$item_m->last_child_of($parent)
 			       ->reload_nesty_cols()
 			       ->save();
@@ -824,7 +870,26 @@ QUERY;
 		else
 		{
 			$item_m = new static($item);
-			$item_m->last_child_of($parent)->reload_nesty_cols()
+
+			// If the user has provided a function to manipulate
+			// the menu object before it's inserted
+			if ($before_persist !== null)
+			{
+				$result = $before_persist($item_m);
+
+				// Returning false means no persistence
+				// To database
+				if ($result === false)
+				{
+					return;
+				}
+
+				$item_m = $result;
+			}
+
+			$item_m->save(); // @todo look why I need this
+			$item_m->last_child_of($parent)
+			       ->reload_nesty_cols()
 			       ->save();
 		}
 
