@@ -25,6 +25,7 @@ use Crud;
 use DB;
 use Exception;
 use HTML;
+use Str;
 
 class NestyException extends Exception {}
 
@@ -50,6 +51,14 @@ class Nesty extends Crud
 		'right' => 'rgt',
 		'tree'  => 'tree_id',
 	);
+
+	/**
+	 * Reference to a cached parent object
+	 * for the this Nesty model.
+	 *
+	 * @var Nesty
+	 */
+	public $parent = null;
 
 	/**
 	 * An array that contains all children models
@@ -434,6 +443,169 @@ class Nesty extends Crud
 		return $this->children;
 	}
 
+	/*
+	|--------------------------------------------------------------------------
+	| Reading - paths and parents
+	|--------------------------------------------------------------------------
+	*/
+
+	/**
+	 * Gets the parent Nesty object for the given object.
+	 *
+	 * @param   int   $limit
+	 * @throws  NestyException
+	 * @return  Nesty $parent
+	 */
+	public function parent($limit = false, $columns = array('*'))
+	{
+		// If we have no parent, return
+		// null as that's what normally
+		// happens when finding a Crud object
+		// that doesn't exist.
+		if ($this->parent === false)
+		{
+			return null;
+		}
+
+		// If we're a root item,
+		// set our parent explicitly
+		// as false
+		if ($this->is_root())
+		{
+			$this->parent = false;
+			return $this->parent($limit, $columns);
+		}
+
+		// Primary key
+		$key   = static::key();
+
+		// Table name
+		$table = static::table();
+
+		// Nesty cols
+		extract(static::$_nesty_cols, EXTR_PREFIX_ALL, 'n');
+
+		// Work out the columns to select
+		$sql_columns = '';
+		foreach ($columns as $column)
+		{
+			$sql_columns .= ' `parent`.'.($column == '*' ? $column : '`'.$column.'`');
+		}
+
+		// Find parent Nesty records
+		$sql = <<<SQL
+SELECT   $sql_columns
+FROM     `$table` AS `nesty`,
+         `$table` AS `parent`
+WHERE    `nesty`.`$n_left` BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
+AND      `nesty`.`$key` = {$this->{$key}}
+AND      `parent`.`$key` != {$this->{$key}}
+-- ORDER BY `parent`.`$n_left` DESC
+SQL;
+
+		// Execute query
+		$results = DB::query($sql);
+
+		// Last parent reference. We set
+		// this throughout the loop. It's
+		// false here, because the first item
+		// is going to be a root item, who's parent
+		// property should be set as root so if
+		// Nesty::parent() is called on that object,
+		// it doesn't re-query the database.
+		$last_parent = false;
+
+		/**
+		 * @todo change the above variable
+		 * if $limit != false (we might not
+		 * start with a root object).
+		 */
+
+		// Loop through and create model instances
+		foreach ($results as $parent)
+		{
+			$parent_m = new static($parent);
+			$parent_m->parent = $last_parent;
+
+			$last_parent = $parent_m;
+		}
+
+		// Finally, the parent model
+		// has all the references to
+		$this->parent = $parent_m;
+
+		return $this->parent;
+	}
+
+	/**
+	 * Returns the Nesty object's path in the hirarchy tree.
+	 *
+	 * @param   string  $column
+	 * @param   string  $format
+	 * @throws  NestyException
+	 * @return  
+	 */
+	public function path($column = null, $format = '.')
+	{
+		// We must exist for a path
+		if ($this->is_new())
+		{
+			throw new NestyException('Cannot retrieve path for non-existent Nesty model.');
+		}
+
+		// Path fallback
+		$path = array();
+
+		// Primary key
+		$key   = static::key();
+
+		// Column to use
+		$column === null and $column = $key;
+
+		// If we're root, skip checking the database
+		// as we have no parents.
+		if ($this->is_root())
+		{
+			$path[] = $this->{$column};
+		}
+
+		// Otherwise, query database for path
+		else
+		{
+			// Table name
+			$table = static::table();
+
+			// Nesty cols
+			extract(static::$_nesty_cols, EXTR_PREFIX_ALL, 'n');
+
+			// Find parent Nesty records
+			$sql = <<<SQL
+SELECT `parent`.`$column`
+FROM   `$table` AS `nesty`,
+       `$table` AS `parent`
+WHERE  `nesty`.`$n_left` BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
+AND    `nesty`.`$key` = {$this->{$key}}
+SQL;
+			
+			// Loop through and append IDs
+			foreach (DB::query($sql) as $result)
+			{
+				$path[] = $result->{$column};
+			}
+		}
+
+		// If the person has requested an array
+		// for the format, return the array
+		if (Str::lower($format) === 'array')
+		{
+			return $path;
+		}
+
+		// Otherwise, glue the array together using
+		// the format provided and return the string
+		return implode($format, $path);
+	}
+
 	/**
 	 * Queries the database for all children
 	 * nodes of the current nesty model.
@@ -467,7 +639,7 @@ class Nesty extends Crud
 
 		// This is the magical query that is the sole
 		// reason we're using the MPTT pattern
-		$sql = <<<QUERY
+		$sql = <<<SQL
 SELECT   $sql_columns,
          (COUNT(`parent`.`$key`) - (`sub_tree`.`depth` + 1)) AS `depth`
 
@@ -500,7 +672,7 @@ AND      `parent`.`$n_tree`  = {$this->{$n_tree}}
 GROUP BY `nesty`.`$key`
 
 HAVING   `depth` > 0
-QUERY;
+SQL;
 
 		// If we have a limit
 		if ($limit)
@@ -901,6 +1073,7 @@ QUERY;
 	{
 		$attributes = get_object_public_vars($this);
 		unset($attributes['children']);
+		unset($attributes['parent']);
 		return $attributes;
 	}
 
