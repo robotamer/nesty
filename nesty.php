@@ -33,6 +33,10 @@ class NestyException extends Exception {}
  * Nesty model class.
  *
  * @author Ben Corlett
+ *
+ * @todo Not urgent, however I would like
+ *       to hydrate the parent reference when
+ *       fetching children of a Nesty model.
  */
 class Nesty extends Crud
 {
@@ -476,63 +480,66 @@ class Nesty extends Crud
 			return $this->parent($limit, $columns);
 		}
 
-		// Primary key
-		$key   = static::key();
-
-		// Table name
-		$table = static::table();
-
-		// Nesty cols
-		extract(static::$_nesty_cols, EXTR_PREFIX_ALL, 'n');
-
-		// Work out the columns to select
-		$sql_columns = '';
-		foreach ($columns as $column)
+		// Lazy load parent
+		if ($this->parent === null)
 		{
-			$sql_columns .= ' `parent`.'.($column == '*' ? $column : '`'.$column.'`');
-		}
+			// Primary key
+			$key   = static::key();
 
-		// Find parent Nesty records
-		$sql = <<<SQL
-SELECT   $sql_columns
-FROM     `$table` AS `nesty`,
-         `$table` AS `parent`
-WHERE    `nesty`.`$n_left` BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
-AND      `nesty`.`$key` = {$this->{$key}}
-AND      `parent`.`$key` != {$this->{$key}}
--- ORDER BY `parent`.`$n_left` DESC
+			// Table name
+			$table = static::table();
+
+			// Nesty cols
+			extract(static::$_nesty_cols, EXTR_PREFIX_ALL, 'n');
+
+			// Work out the columns to select
+			$sql_columns = '';
+			foreach ($columns as $column)
+			{
+				$sql_columns .= ' `parent`.'.($column == '*' ? $column : '`'.$column.'`');
+			}
+
+			// Find parent Nesty records
+			$sql = <<<SQL
+SELECT $sql_columns
+FROM   `$table` AS `nesty`,
+       `$table` AS `parent`
+WHERE  `nesty`.`$n_left` BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
+AND    `nesty`.`$key` = {$this->{$key}}
+AND    `parent`.`$key` != {$this->{$key}}
 SQL;
 
-		// Execute query
-		$results = DB::query($sql);
+			// Execute query
+			$results = DB::query($sql);
 
-		// Last parent reference. We set
-		// this throughout the loop. It's
-		// false here, because the first item
-		// is going to be a root item, who's parent
-		// property should be set as root so if
-		// Nesty::parent() is called on that object,
-		// it doesn't re-query the database.
-		$last_parent = ($limit !== false) ? false : null;
+			// Last parent reference. We set
+			// this throughout the loop. It's
+			// false here, because the first item
+			// is going to be a root item, who's parent
+			// property should be set as root so if
+			// Nesty::parent() is called on that object,
+			// it doesn't re-query the database.
+			$last_parent = ($limit !== false) ? false : null;
 
-		/**
-		 * @todo change the above variable
-		 * if $limit != false (we might not
-		 * start with a root object).
-		 */
+			/**
+			 * @todo change the above variable
+			 * if $limit != false (we might not
+			 * start with a root object).
+			 */
 
-		// Loop through and create model instances
-		foreach ($results as $parent)
-		{
-			$parent_m = new static($parent);
-			$parent_m->parent = $last_parent;
+			// Loop through and create model instances
+			foreach ($results as $parent)
+			{
+				$parent_m = new static($parent);
+				$parent_m->parent = $last_parent;
 
-			$last_parent = $parent_m;
+				$last_parent = $parent_m;
+			}
+
+			// Finally, the parent model
+			// has all the references to
+			$this->parent = $parent_m;
 		}
-
-		// Finally, the parent model
-		// has all the references to
-		$this->parent = $parent_m;
 
 		return $this->parent;
 	}
