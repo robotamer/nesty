@@ -513,7 +513,7 @@ SQL;
 		// property should be set as root so if
 		// Nesty::parent() is called on that object,
 		// it doesn't re-query the database.
-		$last_parent = false;
+		$last_parent = ($limit !== false) ? false : null;
 
 		/**
 		 * @todo change the above variable
