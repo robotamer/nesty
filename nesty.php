@@ -23,6 +23,7 @@ namespace Nesty;
 use Closure;
 use Crud;
 use DB;
+use Event;
 use Exception;
 use HTML;
 use Str;
@@ -749,6 +750,89 @@ SQL;
 		}
 
 		return $this;
+	}
+
+	/*
+	|--------------------------------------------------------------------------
+	| Deleting
+	|--------------------------------------------------------------------------
+	*/
+
+	/**
+	 * Delete a Nesty object from the database. Children items
+	 * will be orphaned; they'll be pushed up to the same level
+	 * as the parent object.
+	 *
+	 * @return  bool
+	 */
+	public function delete()
+	{
+		// Call parent method
+		$result = parent::delete();
+
+		if ($result)
+		{
+			// Shift every result 1 to the left
+			$this->query()
+			     ->where(static::$_nesty_cols['left'], 'BETWEEN', DB::raw($this->{static::$_nesty_cols['left']}.' AND '.$this->{static::$_nesty_cols['right']}))
+			     ->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']})
+			     ->update(array(
+			     	static::$_nesty_cols['left'] => DB::raw('`'.static::$_nesty_cols['left'].'` - 1'),
+			     	static::$_nesty_cols['right'] => DB::raw('`'.static::$_nesty_cols['right'].'` - 1'),
+			     ));
+
+			// Move everything outside our right
+			// limit 2 to the left
+			$this->query()
+			     ->where(static::$_nesty_cols['right'], '>', $this->{static::$_nesty_cols['right']})
+			     ->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']})
+			     ->update(array(
+			     	static::$_nesty_cols['right'] => DB::raw('`'.static::$_nesty_cols['right'].'` - 2'),
+			     ));
+
+			$this->query()
+			     ->where(static::$_nesty_cols['left'], '>', $this->{static::$_nesty_cols['right']})
+			     ->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']})
+			     ->update(array(
+			     	static::$_nesty_cols['right'] => DB::raw('`'.static::$_nesty_cols['right'].'` - 2'),
+			     ));
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Delete a Nesty object from the database along with
+	 * all of it's children. Use with care!
+	 *
+	 * @return  bool
+	 */
+	public function delete_with_children()
+	{
+		// Our delete methodology is different
+		// to normal here... So we are putting
+		// a bunch of code and callbacks so our API
+		// is similar to the delete() one.
+		$query = $this->query()
+		              ->where(static::$_nesty_cols['left'], 'BETWEEN', DB::raw($this->{static::$_nesty_cols['left']}.' AND '.$this->{static::$_nesty_cols['right']}))
+		              ->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']});
+
+		// Callbacks
+		$query = $this->before_delete($query);
+		$result = $query->delete();
+		$result = $this->after_delete($result);
+
+		if (static::$_events)
+		{
+			// Fire delete event
+			Event::fire(static::event().'.delete', array($this));
+		}
+
+		// Remove our gap we created
+		if ($result)
+		{
+			$this->gap($this->{static::$_nesty_cols['left']}, - ($this->size() + 1));
+		}
 	}
 
 	/*
