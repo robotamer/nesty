@@ -508,6 +508,7 @@ FROM   `$table` AS `nesty`,
 WHERE  `nesty`.`$n_left` BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
 AND    `nesty`.`$key` = {$this->{$key}}
 AND    `parent`.`$key` != {$this->{$key}}
+AND    `parent`.`$n_tree`  = {$this->{$n_tree}}
 SQL;
 
 			// Execute query
@@ -593,6 +594,7 @@ FROM   `$table` AS `nesty`,
        `$table` AS `parent`
 WHERE  `nesty`.`$n_left` BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
 AND    `nesty`.`$key` = {$this->{$key}}
+AND    `parent`.`$n_tree`  = {$this->{$n_tree}}
 SQL;
 			
 			// Loop through and append keys
