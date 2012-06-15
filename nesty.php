@@ -794,7 +794,7 @@ SQL;
 			     ->where(static::$_nesty_cols['left'], '>', $this->{static::$_nesty_cols['right']})
 			     ->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']})
 			     ->update(array(
-			     	static::$_nesty_cols['right'] => DB::raw('`'.static::$_nesty_cols['right'].'` - 2'),
+			     	static::$_nesty_cols['left'] => DB::raw('`'.static::$_nesty_cols['left'].'` - 2'),
 			     ));
 		}
 
@@ -1087,8 +1087,9 @@ SQL;
 		// array.
 		foreach ($existing_keys as $existing_key)
 		{
-			$item_m = static::find($existing_key);
-			$item_m->delete();
+			// Find and delete
+			static::find($existing_key)
+			      ->delete();
 		}
 
 		return $root;
