@@ -595,7 +595,7 @@ WHERE  `nesty`.`$n_left` BETWEEN `parent`.`$n_left` AND `parent`.`$n_right`
 AND    `nesty`.`$key` = {$this->{$key}}
 SQL;
 			
-			// Loop through and append IDs
+			// Loop through and append keys
 			foreach (DB::query($sql) as $result)
 			{
 				$path[] = $result->{$column};
@@ -1010,6 +1010,10 @@ SQL;
 	 */
 	public static function from_hierarchy_array($id, array $items, Closure $before_root_persist = null, Closure $before_persist = null)
 	{
+		// Array of existing keys to compare with
+		// the array of items passed through.
+		$existing_keys = array();
+
 		if ($id)
 		{
 			$root = static::find($id);
@@ -1021,7 +1025,7 @@ SQL;
 
 			if ( ! $root->is_root())
 			{
-				throw new NestyException('Passing ID of non-root Nesty model.');
+				throw new NestyException('Passing key of non-root Nesty model.');
 			}
 
 			// If the user has provided a function to manipulate
@@ -1030,6 +1034,19 @@ SQL;
 			{
 				$root = $result;
 				$root->save();
+			}
+
+			// Get all of the keys who are children of the root
+			// key
+			$results = $root->query()
+			                ->where(static::$_nesty_cols['left'], 'BETWEEN', DB::raw($root->{static::$_nesty_cols['left']}.' AND '.$root->{static::$_nesty_cols['right']}))
+			                ->where(static::$_nesty_cols['tree'], '=', $root->{static::$_nesty_cols['tree']})
+			                ->where(static::key(), '!=', $root->{static::key()})
+			                ->get(static::key());
+
+			foreach ($results as $result)
+			{
+				$existing_keys[$result->{static::key()}] = $result->{static::key()};
 			}
 		}
 		else
@@ -1061,7 +1078,17 @@ SQL;
 		{
 			$root->reload_nesty_cols();
 
-			static::recursive_from_array($item, $root, $before_persist);
+			static::recursive_from_array($item, $root, $existing_keys, $before_persist);
+		}
+
+		// If there are any existing keys that
+		// haven't been updated / saved, we're deleting
+		// them now as they're no longer in the hierarchy
+		// array.
+		foreach ($existing_keys as $existing_key)
+		{
+			$item_m = static::find($existing_key);
+			$item_m->delete();
 		}
 
 		return $root;
@@ -1072,17 +1099,18 @@ SQL;
 	 *
 	 * @param  array    $item
 	 * @param  Nesty    $parent
+	 * @param  array    $existing_keys
 	 * @param  Closure  $before_persist
 	 * @throws NestyException
 	 * @return void
 	 */
-	protected static function recursive_from_array(array $item = array(), Nesty &$parent, Closure $before_persist = null)
+	protected static function recursive_from_array(array $item, Nesty &$parent, array &$existing_keys, Closure $before_persist = null)
 	{
 		if ($children = (isset($item['children']) and is_array($item['children']) and count($item['children']) > 0) ? $item['children'] : false)
 		{
 			unset($item['children']);
 		}
-// \Log::test('item: '.print_r($item, true));
+
 		// Are we creating a new item or
 		// updating existing item?
 		if (isset($item[static::key()]))
@@ -1115,6 +1143,9 @@ SQL;
 
 			$item_m->last_child_of($parent)
 			       ->save();
+
+			// Remove the existing key
+			array_forget($existing_keys, $item_m->id);
 		}
 		else
 		{
@@ -1144,7 +1175,7 @@ SQL;
 		{
 			foreach ($children as $child)
 			{
-				static::recursive_from_array($child, $item_m, $before_persist);
+				static::recursive_from_array($child, $item_m, $existing_keys, $before_persist);
 			}
 		}
 	}
