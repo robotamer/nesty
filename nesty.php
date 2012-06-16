@@ -769,6 +769,11 @@ SQL;
 	 */
 	public function delete()
 	{
+		if ($this->is_root())
+		{
+			return $this->delete_root();
+		}
+
 		// Call parent method
 		$result = parent::delete();
 
@@ -811,6 +816,11 @@ SQL;
 	 */
 	public function delete_with_children()
 	{
+		if ($this->is_root())
+		{
+			return $this->delete_root();
+		}
+
 		// Our delete methodology is different
 		// to normal here... So we are putting
 		// a bunch of code and callbacks so our API
@@ -835,6 +845,28 @@ SQL;
 		{
 			$this->gap($this->{static::$_nesty_cols['left']}, - ($this->size() + 1));
 		}
+	}
+
+	/**
+	 * Deletes an entire Nesty tree. Use with care.
+	 *
+	 * @return  int
+	 */
+	protected function delete_root()
+	{
+		if ( ! $this->is_root())
+		{
+			return $this;
+		}
+
+		$query = $this->query()->where(static::$_nesty_cols['tree'], '=', $this->{static::$_nesty_cols['tree']});
+
+		// Callbacks
+		$query = $this->before_delete($query);
+		$result = $query->delete();
+		$result = $this->after_delete($result);
+
+		return $result;
 	}
 
 	/*
