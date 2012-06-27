@@ -1035,22 +1035,22 @@ SQL;
 	 * before it's persisted to the database. Returning false
 	 * from the closure means no changes are made.
 	 *
-	 * @param  int      $id
+	 * @param  int      $key
 	 * @param  array    $items
 	 * @param  Closure  $before_root_persist
-	 * @param  Closure  $before_persist
+	 * @param  Closure  $before_item_persist
 	 * @throws NestyException
 	 * @return Nesty
 	 */
-	public static function from_hierarchy_array($id, array $items, Closure $before_root_persist = null, Closure $before_persist = null)
+	public static function from_hierarchy_array($key, array $items, Closure $before_root_persist = null, Closure $before_item_persist = null)
 	{
 		// Array of existing keys to compare with
 		// the array of items passed through.
 		$existing_keys = array();
 
-		if ($id)
+		if ($key)
 		{
-			$root = static::find($id);
+			$root = static::find($key);
 
 			if ($root === null)
 			{
@@ -1112,7 +1112,7 @@ SQL;
 		{
 			$root->reload_nesty_cols();
 
-			static::recursive_from_array($item, $root, $existing_keys, $before_persist);
+			static::recursive_from_array($item, $root, $existing_keys, $before_item_persist);
 		}
 
 		// If there are any existing keys that
@@ -1135,11 +1135,11 @@ SQL;
 	 * @param  array    $item
 	 * @param  Nesty    $parent
 	 * @param  array    $existing_keys
-	 * @param  Closure  $before_persist
+	 * @param  Closure  $before_item_persist
 	 * @throws NestyException
 	 * @return void
 	 */
-	protected static function recursive_from_array(array $item, Nesty &$parent, array &$existing_keys, Closure $before_persist = null)
+	protected static function recursive_from_array(array $item, Nesty &$parent, array &$existing_keys, Closure $before_item_persist = null)
 	{
 		if ($children = (isset($item['children']) and is_array($item['children']) and count($item['children']) > 0) ? $item['children'] : false)
 		{
@@ -1162,9 +1162,9 @@ SQL;
 
 			// If the user has provided a function to manipulate
 			// the menu object before it's inserted
-			if ($before_persist !== null)
+			if ($before_item_persist !== null)
 			{
-				$result = $before_persist($item_m);
+				$result = $before_item_persist($item_m);
 
 				// Returning false means no persistence
 				// To database
@@ -1188,9 +1188,9 @@ SQL;
 
 			// If the user has provided a function to manipulate
 			// the menu object before it's inserted
-			if ($before_persist !== null)
+			if ($before_item_persist !== null)
 			{
-				$result = $before_persist($item_m);
+				$result = $before_item_persist($item_m);
 
 				// Returning false means no persistence
 				// To database
@@ -1210,7 +1210,7 @@ SQL;
 		{
 			foreach ($children as $child)
 			{
-				static::recursive_from_array($child, $item_m, $existing_keys, $before_persist);
+				static::recursive_from_array($child, $item_m, $existing_keys, $before_item_persist);
 			}
 		}
 	}
